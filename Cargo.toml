@@ -1,0 +1,15 @@
+[project]
+name = "wm"
+version = "0.0.1"
+authors = ["Coleman"]
+
+[dependencies]
+x11 = { version = "2.12.0", features = ["xlib", "xinput"] }
+libc = "0.2.19"
+
+[features]
+xlib = []
+xinput = []
+
+[[bin]]
+name = "wm"
