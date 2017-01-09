@@ -33,7 +33,7 @@ impl Window {
             let mut attributes: xlib::XSetWindowAttributes = zeroed();
             attributes.background_pixel = white_pixel;
 
-            let window = xlib::XCreateWindow(display, root, 0, 0, width as c_uint, height as c_uint, 0, 0,
+            let window = xlib::XCreateWindow(display, root, (width / 2) as i32, (height / 2) as i32, width as c_uint, height as c_uint, 0, 0,
                                              xlib::InputOutput as c_uint, null_mut(),
                                              xlib::CWBackPixel, &mut attributes);
             // Set window title

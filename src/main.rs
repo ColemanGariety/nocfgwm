@@ -24,10 +24,6 @@ use std::ptr::{null, null_mut};
 
 mod window;
 
-const TITLE: &'static str = "XInput Demo";
-const DEFAULT_WIDTH: c_uint = 640;
-const DEFAULT_HEIGHT: c_uint = 480;
-
 struct InputState {
     cursor_pos: (f64, f64),
 }
@@ -52,21 +48,13 @@ fn main () {
     let root = unsafe{xlib::XRootWindow(display, screen)};
 
 
-    let mut demo_window = Window::new(display, root, screen, TITLE, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+    let mut demo_window = Window::new(display, root, screen, "A", 600, 400);
+    let mut other_window = Window::new(display, root, screen, "B", 300, 200);
 
     // query XInput support
     let mut opcode: c_int = 0;
     let mut event: c_int = 0;
-    let mut error: c_int = 0;
     let xinput_str = CString::new("XInputExtension").unwrap();
-
-    let mut xinput_major_ver = xinput2::XI_2_Major;
-    let mut xinput_minor_ver = xinput2::XI_2_Minor;
-    if unsafe{xinput2::XIQueryVersion(demo_window.display,
-      &mut xinput_major_ver, &mut xinput_minor_ver)} != xlib::Success as c_int {
-        panic!("XInput2 not available");
-    }
-    println!("XI version available {}.{}", xinput_major_ver, xinput_minor_ver);
 
     // init XInput events
     let mut mask: [c_uchar; 1] = [0];
@@ -86,22 +74,18 @@ fn main () {
         xinput2::XISetMask(&mut mask, event);
     }
 
-    match unsafe{xinput2::XISelectEvents(demo_window.display,
-      demo_window.window, &mut input_event_mask, 1)} {
+    match unsafe{xinput2::XISelectEvents(display,
+      root, &mut input_event_mask, 1)} {
         status if status as u8 == xlib::Success => (),
         err => panic!("Failed to select events {:?}", err)
     }
 
     // Show window
+    other_window.show();
     demo_window.show();
 
-    let mut prev_state = InputState{
-        cursor_pos: (0.0, 0.0),
-    };
-
     let mut event: xlib::XEvent = unsafe{zeroed()};
-    let mut start_x: f64 = 0.0;
-    let mut start_y: f64 = 0.0;
+    let mut start: &xinput2::XIDeviceEvent = unsafe{zeroed()};
 
     loop {
         unsafe{xlib::XNextEvent(display, &mut event)};
@@ -116,32 +100,27 @@ fn main () {
 
                 match cookie.evtype {
                     xinput2::XI_ButtonPress => {
-                        let event_data: &xinput2::XIDeviceEvent = unsafe{transmute(cookie.data)};
-                        start_x = event_data.event_x;
-                        start_y = event_data.event_y;
+                        start = unsafe{transmute(cookie.data)};
+                    },
+                    xinput2::XI_ButtonPress => {
+                        start = unsafe{zeroed()};
                     },
                     xinput2::XI_Motion => {
                         let event_data: &xinput2::XIDeviceEvent = unsafe{transmute(cookie.data)};
-                        let mut xdiff = 0.0;
-                        let mut ydiff = 0.0;
 
-                        let mask = unsafe{from_raw_parts(event_data.buttons.mask, event_data.buttons.mask_len as usize)};
-                        if xinput2::XIMaskIsSet(&mask, 1) {
-                            xdiff = event_data.event_x - start_x;
-                            ydiff = event_data.event_y - start_y;
+                        if event_data.child != 0 && event_data.mods.base == 8 {
+                            unsafe {
+                                xlib::XGetWindowAttributes(display, event_data.child, &mut attr);
+                                xlib::XMoveResizeWindow(
+                                    display,
+                                    event_data.child,
+                                    event_data.event_x as i32,
+                                    event_data.event_y as i32,
+                                    attr.width as u32,
+                                    attr.height as u32
+                                );
+                            };
                         }
-
-                        unsafe {
-                            xlib::XGetWindowAttributes(display, event_data.event, &mut attr);
-                            xlib::XMoveResizeWindow(
-                                display,
-                                event_data.event,
-                                attr.x + (xdiff as i32),
-                                attr.y + (ydiff as i32),
-                                attr.width as u32,
-                                attr.height as u32
-                            );
-                        };
                     },
                     _ => ()
                 }
