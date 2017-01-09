@@ -1,12 +1,10 @@
 use libc::c_uint;
-use x11::xlib;
+use x11::{xlib, xinput2};
 use std::mem::zeroed;
 use std::ffi::CString;
-use std::ptr::{
-  null,
-  null_mut,
-};
+use std::ptr::{null, null_mut};
 
+#[derive(Debug)]
 pub struct Window {
     pub display: *mut xlib::Display,
     pub window: xlib::Window,
@@ -17,14 +15,8 @@ pub struct Window {
 
 impl Window {
     /// Create a new window with a given title and size
-    pub fn new(title: &str, width: u32, height: u32) -> Window {
+    pub fn new(display: *mut xlib::Display, root: u64, screen: i32, title: &str, width: u32, height: u32) -> Window {
         unsafe {
-            // Open display
-            let display = xlib::XOpenDisplay(null());
-            if display == null_mut() {
-                panic!("can't open display");
-            }
-
             // Load atoms
             let wm_delete_window_str = CString::new("WM_DELETE_WINDOW").unwrap();
             let wm_protocols_str = CString::new("WM_PROTOCOLS").unwrap();
@@ -37,10 +29,7 @@ impl Window {
             }
 
             // Create window
-            let screen_num = xlib::XDefaultScreen(display);
-            let root = xlib::XRootWindow(display, screen_num);
-            let white_pixel = xlib::XWhitePixel(display, screen_num);
-
+            let white_pixel = xlib::XWhitePixel(display, screen);
             let mut attributes: xlib::XSetWindowAttributes = zeroed();
             attributes.background_pixel = white_pixel;
 
@@ -73,32 +62,6 @@ impl Window {
             xlib::XMapWindow(self.display, self.window);
         }
     }
-
-    /// Process events for the window. Window close events are handled automatically,
-    /// other events are passed on to |event_handler|
-    pub fn run_event_loop<EventHandler>(&mut self, mut event_handler: EventHandler)
-        where EventHandler: FnMut(&xlib::XEvent) {
-            let mut event: xlib::XEvent = unsafe{zeroed()};
-            loop {
-                unsafe{xlib::XNextEvent(self.display, &mut event)};
-                match event.get_type() {
-                    xlib::ClientMessage => {
-                        let xclient: xlib::XClientMessageEvent = From::from(event);
-
-                        // WM_PROTOCOLS client message
-                        if xclient.message_type == self.wm_protocols && xclient.format == 32 {
-                            let protocol = xclient.data.get_long(0) as xlib::Atom;
-
-                            // WM_DELETE_WINDOW (close event)
-                            if protocol == self.wm_delete_window {
-                                break;
-                            }
-                        }
-                    },
-                    _ => event_handler(&event)
-                }
-            }
-        }
 }
 
 impl Drop for Window {
