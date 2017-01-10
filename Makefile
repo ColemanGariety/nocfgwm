@@ -3,5 +3,7 @@ install_dev:
 
 dev:
 	cargo build --features "xlib xinput"
-	Xnest :1 -geometry 1024x768+0+0 &
-	DISPLAY=:1 ./target/debug/wm
+	Xephyr -screen 800x600 :1 &
+	DISPLAY=:1 ./target/debug/wm &
+	DISPLAY=:1 xterm &
+	DISPLAY=:1 sxhkd
