@@ -6,7 +6,13 @@ use std::time::Duration;
 use std::thread::sleep;
 
 use parent;
+use window;
 
+pub struct Altmove {
+    pub moving: bool,
+    pub xoff: i32,
+    pub yoff: i32,
+}
 pub struct Title;
 pub struct Dim {
     pub x: i32,
@@ -15,10 +21,10 @@ pub struct Dim {
     pub height: i32,
 }
 pub struct Window {
-    title: Title,
-    client: xlib::Window,
-    odim: Dim,
+    pub title: Title,
+    pub client: xlib::Window,
     pub parent: parent::Parent,
+    pub altmove: Altmove,
 }
 
 pub fn configure(display: *mut xlib::Display, conf: &xlib::XConfigureRequestEvent) {
@@ -35,7 +41,7 @@ pub fn configure(display: *mut xlib::Display, conf: &xlib::XConfigureRequestEven
     unsafe{xlib::XConfigureWindow(display, conf.window, conf.value_mask as u32, &mut wc)};
 }
 
-pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmstart: i32) {
+pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmstart: i32) -> Window {
     let mut win: Window = unsafe{zeroed()};
     let mut attr: xlib::XWindowAttributes = unsafe{zeroed()};
     let mut sz: xlib::XSizeHints = unsafe{zeroed()};
@@ -51,10 +57,9 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
     win.client = client;
     win.title = unsafe{zeroed()};
     win.parent = unsafe{zeroed()};
-    win.odim.x = attr.x;
-    win.odim.y = attr.y;
-    win.odim.width = attr.width;
-    win.odim.height = attr.height;
+    win.altmove.moving = false;
+    win.altmove.xoff = 0;
+    win.altmove.yoff = 0;
 
     parent::create_parent(display, &mut win, root, xlib::InputOutput,
                           attr.x, attr.y, attr.width, attr.height);
@@ -65,7 +70,6 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
                           xlib::ButtonReleaseMask as u32 | xlib::ButtonMotionMask as u32,
                           xlib::GrabModeAsync, xlib::GrabModeAsync,
                           0, xlib::XCreateFontCursor(display, 1));
-
         xlib::XGrabButton(display, xlib::Button1, xlib::Mod1Mask | xlib::ControlMask,
                           win.parent.xwindow, false as c_int, xlib::ButtonPressMask as u32 |
                           xlib::ButtonReleaseMask as u32 | xlib::ButtonMotionMask as u32,
@@ -80,28 +84,38 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         xlib::XReparentWindow(display, client, win.parent.xwindow, 10, 10);
         xlib::XLowerWindow(display, client);
         xlib::XSelectInput(display, client, xlib::PropertyChangeMask);
-
-        xlib::XGrabButton(display, xlib::AnyButton as u32, 0, client, true as i32,
-                          xlib::ButtonPressMask as u32, xlib::GrabModeSync, xlib::GrabModeSync,
-                          0, 0);
-
         xlib::XMapWindow(display, client);
-        xlib::XRaiseWindow(display, client);
         xlib::XMapWindow(display, win.parent.xwindow);
-        xlib::XRaiseWindow(display, win.parent.xwindow);
-        set_active_window(display, win);
+        xlib::XSetInputFocus(display, client, xlib::RevertToPointerRoot, xlib::CurrentTime);
         xlib::XSync(display, 0);
     }
+
+    return win;
 }
 
-pub fn set_active_window(display: *mut xlib::Display, win: Window) {
-    unsafe {
-        xlib::XMoveResizeWindow(display, win.parent.xwindow, win.odim.x, win.odim.y, win.odim.width as u32, win.odim.height as u32);
-        xlib::XSync(display, 0);
-        xlib::XSetInputFocus(display, win.client, xlib::RevertToPointerRoot, xlib::CurrentTime);
+pub fn windowevent(display: *mut xlib::Display, e: xlib::XEvent, win: &mut window::Window) {
+    match e.get_type() {
+        xlib::ButtonPress => {
+            unsafe {
+                xlib::XSetInputFocus(display, win.client, xlib::RevertToPointerRoot, xlib::CurrentTime);
+                let xbutton: xlib::XButtonEvent = From::from(e);
+                if xbutton.state & xlib::Mod1Mask != 0 {
+                    win.altmove.xoff = xbutton.x;
+                    win.altmove.yoff = xbutton.y;
+                    win.altmove.moving = true;
+                }
+            }
+        },
+        xlib::MotionNotify => {
+            if win.altmove.moving {
+                unsafe {
+                    let xmotion: xlib::XMotionEvent = From::from(e);
+                    xlib::XMoveWindow(display, win.parent.xwindow,
+                                      xmotion.x_root - win.altmove.xoff,
+                                      xmotion.y_root - win.altmove.yoff);
+                } 
+            }
+        }
+        _ => ()
     }
-}
-
-pub fn windowevent(e: &mut xlib::XEvent, client: &mut xlib::Window) {
-   println!("foo")
 }

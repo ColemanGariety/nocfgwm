@@ -4,7 +4,6 @@
 extern crate libc;
 extern crate x11;
 
-use std::ffi::CString;
 use std::mem::{zeroed};
 use std::ptr::{null, null_mut};
 use libc::{c_int, c_uint};
@@ -21,11 +20,9 @@ fn main() {
         panic!("Could not grab display");
     }
 
-    let screen;
     let root;
 
     unsafe {
-        screen = xlib::XDefaultScreen(display);
         root = xlib::XDefaultRootWindow(display);
 
         xlib::XSelectInput(display, root, xlib::ButtonPressMask |
@@ -48,6 +45,7 @@ fn main() {
 
     let mut e: xlib::XEvent = unsafe{zeroed()};
     let mut xwindow: xlib::Window;
+    let mut windows: Vec<window::Window> = Vec::new();
 
     loop {
         unsafe {
@@ -63,7 +61,7 @@ fn main() {
                 window::configure(display, &xconfigurerequest);
             },
             xlib::MapRequest => {
-                window::manage(display, root, xwindow, 0);
+                windows.push(window::manage(display, root, xwindow, 0));
             },
             // xlib::ButtonPress => {
             //     // not implemented
@@ -71,8 +69,19 @@ fn main() {
             // xlib::KeyPress | xlib::KeyRelease => {
             //     // not implemented
             // },
+            xlib::ClientMessage |
+            xlib::CreateNotify |
+            xlib::DestroyNotify |
+            xlib::ConfigureNotify |
+            xlib::ReparentNotify |
+            xlib::MapNotify |
+            xlib::UnmapNotify => (),
             _ => {
-                // window::windowevent(&mut e, &mut xwindow)
+                for win in &mut windows {
+                    if win.parent.xwindow == xwindow {
+                        window::windowevent(display, e, win);
+                    }
+                }
             }
         }
     }
