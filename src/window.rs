@@ -97,6 +97,7 @@ pub fn windowevent(display: *mut xlib::Display, e: xlib::XEvent, win: &mut windo
     match e.get_type() {
         xlib::ButtonPress => {
             unsafe {
+                xlib::XRaiseWindow(display, win.parent.xwindow);
                 xlib::XSetInputFocus(display, win.client, xlib::RevertToPointerRoot, xlib::CurrentTime);
                 let xbutton: xlib::XButtonEvent = From::from(e);
                 if xbutton.state & xlib::Mod1Mask != 0 {
