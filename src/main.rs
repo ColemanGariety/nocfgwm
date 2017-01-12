@@ -65,13 +65,15 @@ fn main() {
             xlib::MapRequest => {
                 window::manage(display, root, xwindow, 0);
             },
-            xlib::ButtonPress => {
-                // not implemented
-            },
-            xlib::KeyPress | xlib::KeyRelease => {
-                // not implemented
-            },
-            _ => ()
+            // xlib::ButtonPress => {
+            //     // not implemented
+            // },
+            // xlib::KeyPress | xlib::KeyRelease => {
+            //     // not implemented
+            // },
+            _ => {
+                // window::windowevent(&mut e, &mut xwindow)
+            }
         }
     }
 }

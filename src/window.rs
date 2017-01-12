@@ -2,6 +2,8 @@ use x11::xlib;
 use std::mem::{zeroed};
 use std::ptr::{null, null_mut};
 use libc::{c_int, c_uint};
+use std::time::Duration;
+use std::thread::sleep;
 
 use parent;
 
@@ -73,7 +75,9 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         xlib::XSelectInput(display, win.parent.xwindow, xlib::ExposureMask |
                            xlib::SubstructureRedirectMask | xlib::SubstructureNotifyMask);
 
-        xlib::XSetWindowBorderWidth(display, client, 10);
+        xlib::XAddToSaveSet(display, client);
+        xlib::XSetWindowBorderWidth(display, client, 0);
+        xlib::XReparentWindow(display, client, win.parent.xwindow, 10, 10);
         xlib::XLowerWindow(display, client);
         xlib::XSelectInput(display, client, xlib::PropertyChangeMask);
 
@@ -83,7 +87,21 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
 
         xlib::XMapWindow(display, client);
         xlib::XRaiseWindow(display, client);
-        xlib::XSetInputFocus(display, client, xlib::RevertToPointerRoot, xlib::CurrentTime);
+        xlib::XMapWindow(display, win.parent.xwindow);
+        xlib::XRaiseWindow(display, win.parent.xwindow);
+        set_active_window(display, win);
         xlib::XSync(display, 0);
     }
+}
+
+pub fn set_active_window(display: *mut xlib::Display, win: Window) {
+    unsafe {
+        xlib::XMoveResizeWindow(display, win.parent.xwindow, win.odim.x, win.odim.y, win.odim.width as u32, win.odim.height as u32);
+        xlib::XSync(display, 0);
+        xlib::XSetInputFocus(display, win.client, xlib::RevertToPointerRoot, xlib::CurrentTime);
+    }
+}
+
+pub fn windowevent(e: &mut xlib::XEvent, client: &mut xlib::Window) {
+   println!("foo")
 }
