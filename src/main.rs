@@ -11,6 +11,7 @@ use x11::{xlib, keysym};
 
 mod parent;
 mod window;
+mod title;
 
 fn max(a : c_int, b : c_int) -> c_uint { if a > b { a as c_uint } else { b as c_uint } }
 

@@ -1,19 +1,40 @@
 use x11::xlib;
 use std::mem::{zeroed};
 use std::ptr::{null, null_mut};
-use libc::{c_int, c_uint};
+use libc::{c_int, c_uint, c_long};
 use std::time::Duration;
 use std::thread::sleep;
 
 use parent;
 use window;
+use title;
 
 pub struct Altmove {
     pub moving: bool,
     pub xoff: i32,
     pub yoff: i32,
 }
-pub struct Title;
+
+pub struct Color {
+    pub bright2: c_long,
+    pub bright1: c_long,
+    pub normal: c_long,
+    pub shadow1: c_long,
+    pub shadow2: c_long,
+}
+
+pub struct Title {
+    pub gc: xlib::GC,
+    pub xoff: i32,
+    pub yoff: i32,
+    pub fg: Color,
+    pub bg: Color,
+    pub pixmap: xlib::Pixmap,
+    pub pixmapwidth: c_int,
+    pub pixmapheight: c_int,
+    pub xwindow: xlib::Window,
+}
+
 #[derive(Clone, Debug)]
 pub struct Dim {
     pub x: i32,
@@ -80,12 +101,32 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
                           xlib::GrabModeAsync, xlib::GrabModeAsync,
                           0, xlib::XCreateFontCursor(display, 1));
 
+        // Setup title
+        let mut gcval: xlib::XGCValues = unsafe{zeroed()};
+        let screen = xlib::XDefaultScreen(display);
+        let mut tp: Title = unsafe{zeroed()};
+        let mut title_attr: xlib::XSetWindowAttributes = unsafe{zeroed()};
+        tp.xwindow = xlib::XCreateWindow(display, win.parent.xwindow, 4, 4,
+                                         (attr.width - 2 * 4) as u32, 12, 0,
+                                         xlib::CopyFromParent as c_int,
+                                         xlib::InputOutput as u32, null_mut(),
+                                         xlib::CWOverrideRedirect, &mut title_attr);
+        tp.pixmapwidth = attr.width;
+        tp.pixmapheight = attr.height;
+        tp.pixmap = xlib::XCreatePixmap(display, win.parent.xwindow, tp.pixmapwidth as u32, tp.pixmapheight as u32, xlib::XDefaultDepth(display, screen) as u32);
+        gcval.graphics_exposures = false as c_int;
+        tp.gc = xlib::XCreateGC(display, win.parent.xwindow, xlib::GCGraphicsExposures as u64, &mut gcval);
+        xlib::XSelectInput(display, win.parent.xwindow, xlib::ButtonPressMask | xlib::ButtonMotionMask | xlib::ButtonReleaseMask | xlib::ExposureMask);
+        xlib::XMapWindow(display, tp.xwindow);
+        win.title = tp;
+
+        // Reparent window
         xlib::XSelectInput(display, win.parent.xwindow, xlib::ExposureMask |
                            xlib::SubstructureRedirectMask | xlib::SubstructureNotifyMask);
 
         xlib::XAddToSaveSet(display, client);
         xlib::XSetWindowBorderWidth(display, client, 0);
-        xlib::XReparentWindow(display, client, win.parent.xwindow, 10, 10);
+        xlib::XReparentWindow(display, client, win.parent.xwindow, 4, 12);
         xlib::XLowerWindow(display, client);
         xlib::XSelectInput(display, client, xlib::PropertyChangeMask);
         xlib::XMapWindow(display, client);
@@ -94,6 +135,23 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         xlib::XSync(display, 0);
     }
 
+    // paint title
+    let gc: xlib::GC = win.title.gc;
+    
+
+    // paint etc
+    // unsafe {
+    //     // draw raised
+    //     xlib::XSetForeground(display, gc, 24);
+    //     xlib::XDrawLine(display, win.parent.xwindow, gc, 0, 0, 3, 3);
+        
+    //     xlib::XSetForeground(display, gc, 24);
+    //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, 1, (attr.width - 3) as u32, 1);
+    //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, attr.height - 3, (attr.width - 3) as u32, 1);
+    //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, 2, 1, (attr.height - 2 * 7) as u32);
+    //     xlib::XFillRectangle(display, win.parent.xwindow, gc, (attr.width - 5), 2, 1, (attr.height - 2 * 7) as u32);
+    // }
+    
     for win in windows.iter_mut() {
         win.active = false;
     }
