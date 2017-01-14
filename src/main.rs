@@ -61,14 +61,17 @@ fn main() {
                 window::configure(display, &xconfigurerequest);
             },
             xlib::MapRequest => {
-                windows.push(window::manage(display, root, xwindow, 0));
+                window::manage(display, root, xwindow, 0, &mut windows);
             },
             // xlib::ButtonPress => {
             //     // not implemented
             // },
-            // xlib::KeyPress | xlib::KeyRelease => {
-            //     // not implemented
-            // },
+            xlib::KeyPress | xlib::KeyRelease => {
+                let xkey: xlib::XKeyEvent = From::from(e);
+                if  xkey.window == root {
+                    handlekey(display, e, xkey, &mut windows);
+                }
+            },
             xlib::ClientMessage |
             xlib::CreateNotify |
             xlib::DestroyNotify |
@@ -77,9 +80,12 @@ fn main() {
             xlib::MapNotify |
             xlib::UnmapNotify => (),
             _ => {
-                for win in &mut windows {
+                for win in windows.iter_mut() {
                     if win.parent.xwindow == xwindow {
+                        win.active = true;
                         window::windowevent(display, e, win);
+                    } else {
+                        win.active = false;
                     }
                 }
             }
@@ -102,4 +108,62 @@ fn xeventwindow(e: xlib::XEvent) -> xlib::Window {
             return xany.window;
         }
     }
+}
+
+fn handlekey(display: *mut xlib::Display, e: xlib::XEvent, ep: xlib::XKeyEvent, windows: &mut Vec<window::Window>) {
+    match unsafe{xlib::XKeycodeToKeysym(display, ep.keycode as u8, 0) as u32} {
+        keysym::XK_Meta_L |
+        keysym::XK_Meta_R |
+        keysym::XK_Alt_L |
+        keysym::XK_Alt_R |
+        keysym::XK_Super_L |
+        keysym::XK_Super_R => {
+            // implement window cycling
+        },
+        keysym::XK_Tab => {
+            // implement window switching
+        },
+        keysym::XK_space => {
+            if e.get_type() == xlib::KeyPress {
+                match windows.iter_mut().find(|ref win| win.active) {
+                    Some(mut win) => {
+                        window::maximize(display, win);
+                    },
+                    None => ()
+                }
+            }
+        },
+        keysym::XK_Escape => {
+            // implement hide window
+        },
+        keysym::XK_BackSpace => {
+            if e.get_type() == xlib::KeyPress {
+                let mut revert: c_int = unsafe{zeroed()};
+                unsafe {
+                    match windows.iter().find(|&win| win.active) {
+                        Some(win) => {
+                            xlib::XGrabServer(display);
+                            xlib::XSetErrorHandler(Some(xerr_ignore));
+                            xlib::XDestroyWindow(display, win.parent.xwindow);
+                            xlib::XSync(display, false as c_int);
+                            xlib::XUngrabServer(display);
+                        },
+                        None => ()
+                    }
+                    for win in windows.iter_mut() {
+                        win.active = false;
+                    }
+                }
+            }
+        },
+        _ => ()
+    }
+}
+
+#[allow(unused_variables)]
+pub extern "C" fn xerr_ignore(display: *mut xlib::Display,
+                               event: *mut xlib::XErrorEvent)
+                               -> c_int {
+    let e: xlib::XErrorEvent = unsafe { *event };
+    0
 }

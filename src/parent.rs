@@ -6,7 +6,7 @@ use libc::{c_int, c_uint};
 use window;
 
 pub struct Parent {
-    dim: window::Dim,
+    pub dim: window::Dim,
     pub xwindow: xlib::Window,
 }
 

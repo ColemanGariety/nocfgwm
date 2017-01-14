@@ -14,6 +14,7 @@ pub struct Altmove {
     pub yoff: i32,
 }
 pub struct Title;
+#[derive(Clone, Debug)]
 pub struct Dim {
     pub x: i32,
     pub y: i32,
@@ -25,6 +26,9 @@ pub struct Window {
     pub client: xlib::Window,
     pub parent: parent::Parent,
     pub altmove: Altmove,
+    pub active: bool,
+    pub maximized: bool,
+    pub odim: Dim,
 }
 
 pub fn configure(display: *mut xlib::Display, conf: &xlib::XConfigureRequestEvent) {
@@ -41,7 +45,7 @@ pub fn configure(display: *mut xlib::Display, conf: &xlib::XConfigureRequestEven
     unsafe{xlib::XConfigureWindow(display, conf.window, conf.value_mask as u32, &mut wc)};
 }
 
-pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmstart: i32) -> Window {
+pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmstart: i32, windows: &mut Vec<Window>) {
     let mut win: Window = unsafe{zeroed()};
     let mut attr: xlib::XWindowAttributes = unsafe{zeroed()};
     let mut sz: xlib::XSizeHints = unsafe{zeroed()};
@@ -90,10 +94,14 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         xlib::XSync(display, 0);
     }
 
-    return win;
+    for win in windows.iter_mut() {
+        win.active = false;
+    }
+    win.active = true;
+    windows.push(win);
 }
 
-pub fn windowevent(display: *mut xlib::Display, e: xlib::XEvent, win: &mut window::Window) {
+pub fn windowevent(display: *mut xlib::Display, e: xlib::XEvent, win: &mut Window) {
     match e.get_type() {
         xlib::ButtonPress => {
             unsafe {
@@ -111,12 +119,37 @@ pub fn windowevent(display: *mut xlib::Display, e: xlib::XEvent, win: &mut windo
             if win.altmove.moving {
                 unsafe {
                     let xmotion: xlib::XMotionEvent = From::from(e);
+                    win.parent.dim.x = xmotion.x_root;
+                    win.parent.dim.y = xmotion.y_root;
                     xlib::XMoveWindow(display, win.parent.xwindow,
                                       xmotion.x_root - win.altmove.xoff,
                                       xmotion.y_root - win.altmove.yoff);
-                } 
+                }
+            }
+        },
+        xlib::ButtonRelease => {
+            unsafe {
+                win.altmove.moving = false;
             }
         }
         _ => ()
+    }
+}
+
+pub fn maximize(display: *mut xlib::Display, win: &mut Window) {
+    if win.maximized {
+        unsafe {
+            xlib::XMoveResizeWindow(display, win.parent.xwindow, win.odim.x as i32, win.odim.y as i32, win.odim.width as u32, win.odim.height as u32);
+            xlib::XMoveResizeWindow(display, win.client, win.odim.x as i32, win.odim.y as i32, win.odim.width as u32, win.odim.height as u32);
+        }
+        win.maximized = false;
+    } else {
+        win.odim = win.parent.dim.clone();
+        unsafe {
+            let screen = xlib::XDefaultScreen(display);
+            xlib::XMoveResizeWindow(display, win.parent.xwindow, 0, 0, xlib::XDisplayWidth(display, screen) as u32, xlib::XDisplayHeight(display, screen) as u32);
+            xlib::XMoveResizeWindow(display, win.client, 0, 0, xlib::XDisplayWidth(display, screen) as u32, xlib::XDisplayHeight(display, screen) as u32);
+        }
+        win.maximized = true;
     }
 }
