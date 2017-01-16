@@ -4,6 +4,7 @@ use std::ptr::{null, null_mut};
 use libc::{c_int, c_uint, c_long};
 use std::time::Duration;
 use std::thread::sleep;
+use std::ffi::CString;
 
 use parent;
 use window;
@@ -106,11 +107,13 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         let screen = xlib::XDefaultScreen(display);
         let mut tp: Title = unsafe{zeroed()};
         let mut title_attr: xlib::XSetWindowAttributes = unsafe{zeroed()};
-        tp.xwindow = xlib::XCreateWindow(display, win.parent.xwindow, 4, 4,
-                                         (attr.width - 2 * 4) as u32, 12, 0,
+        tp.xwindow = xlib::XCreateWindow(display, win.parent.xwindow, 0, 0,
+                                         (attr.width) as u32, 12, 0,
                                          xlib::CopyFromParent as c_int,
                                          xlib::InputOutput as u32, null_mut(),
                                          xlib::CWOverrideRedirect, &mut title_attr);
+        // title::mkcolor(display, title.fg, "rgb:00/00/00");
+        // title::mkcolor(display, title.bg, "rgb:dc/da/d5");
         tp.pixmapwidth = attr.width;
         tp.pixmapheight = attr.height;
         tp.pixmap = xlib::XCreatePixmap(display, win.parent.xwindow, tp.pixmapwidth as u32, tp.pixmapheight as u32, xlib::XDefaultDepth(display, screen) as u32);
@@ -118,6 +121,12 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
         tp.gc = xlib::XCreateGC(display, win.parent.xwindow, xlib::GCGraphicsExposures as u64, &mut gcval);
         xlib::XSelectInput(display, win.parent.xwindow, xlib::ButtonPressMask | xlib::ButtonMotionMask | xlib::ButtonReleaseMask | xlib::ExposureMask);
         xlib::XMapWindow(display, tp.xwindow);
+        let mut bg: xlib::XColor = unsafe{zeroed()};
+        let name = CString::new("#073642").unwrap().into_raw();
+        xlib::XParseColor(display, xlib::XDefaultColormap(display,0), name, &mut bg);
+        xlib::XAllocColor(display, xlib::XDefaultColormap(display, 0), &mut bg);
+        xlib::XSetWindowBackground(display, tp.xwindow, bg.pixel);
+
         win.title = tp;
 
         // Reparent window
@@ -137,21 +146,21 @@ pub fn manage(display: *mut xlib::Display, root: u64, client: xlib::Window, wmst
 
     // paint title
     let gc: xlib::GC = win.title.gc;
-    
+
 
     // paint etc
     // unsafe {
     //     // draw raised
     //     xlib::XSetForeground(display, gc, 24);
     //     xlib::XDrawLine(display, win.parent.xwindow, gc, 0, 0, 3, 3);
-        
+
     //     xlib::XSetForeground(display, gc, 24);
     //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, 1, (attr.width - 3) as u32, 1);
     //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, attr.height - 3, (attr.width - 3) as u32, 1);
     //     xlib::XFillRectangle(display, win.parent.xwindow, gc, 1, 2, 1, (attr.height - 2 * 7) as u32);
     //     xlib::XFillRectangle(display, win.parent.xwindow, gc, (attr.width - 5), 2, 1, (attr.height - 2 * 7) as u32);
     // }
-    
+
     for win in windows.iter_mut() {
         win.active = false;
     }

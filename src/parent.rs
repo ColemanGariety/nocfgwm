@@ -23,7 +23,7 @@ pub fn create_parent(display: *mut xlib::Display, window: &mut window::Window,
 
     unsafe {
         window.parent.xwindow = xlib::XCreateWindow(display, xparent,
-                                                    x, y, width as u32, height as u32,
+                                                    x, y, (width + 4) as u32, (height + 12) as u32,
                                                     0, xlib::CopyFromParent as c_int,
                                                     class as u32, null_mut(),
                                                     xlib::CWOverrideRedirect, &mut attr);
